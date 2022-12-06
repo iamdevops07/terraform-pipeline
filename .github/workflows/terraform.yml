@@ -31,7 +31,7 @@ jobs:
       id: filter
       with:
         filters: |
-          folder-1:
+          sub-folder-1:
             - 'sub-folder-1/**'
          
  terraform:
