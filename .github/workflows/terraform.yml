@@ -8,7 +8,7 @@ on:
    branches:
    - main
    paths:
-   - 'sub-folder-1/**'
+   - sub-folder-1/**
  
 # env:
 #   # verbosity setting for Terraform logs
