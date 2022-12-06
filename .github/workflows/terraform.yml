@@ -33,9 +33,9 @@ jobs:
         filters: |
           folder-1:
             - sub-folder-1/**
-            - sub-folder-2/**
          
  terraform:
+   needs: changes
    name: "Terraform Infrastructure Change Management"
    runs-on: ubuntu-latest
    permissions:
