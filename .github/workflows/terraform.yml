@@ -8,7 +8,7 @@ on:
    branches:
    - main
    paths:
-   - 'subfolder-1/**'
+   - 'sub-folder-1/**'
  
 # env:
 #   # verbosity setting for Terraform logs
@@ -32,7 +32,8 @@ jobs:
       with:
         filters: |
           folder-1:
-            - 'sub-folder-1/**'
+            - sub-folder-1/**
+            - sub-folder-2/**
          
  terraform:
    name: "Terraform Infrastructure Change Management"
