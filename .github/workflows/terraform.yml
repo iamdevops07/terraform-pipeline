@@ -32,18 +32,23 @@ jobs:
       with:
         filters: |
           folder-1:
-            - sub-folder-1/**
+            - 'sub-folder-1/**''
          
  terraform:
    needs: changes
    if: ${{ needs.changes.outputs.names != '[]' }}
    name: "Terraform Infrastructure Change Management"
    runs-on: ubuntu-latest
+   strategy:
+      max-parallel: 1
+      matrix:
+         name: ${{ fromJSON(needs.changes.outputs.names) }}
    permissions:
       id-token: write
       contents: write
    defaults:
     run:
+      shell: bash
       working-directory: ${{ matrix.name }}   
  
    steps:
