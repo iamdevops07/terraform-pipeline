@@ -32,8 +32,8 @@ jobs:
       with:
         filters: |
           folder-1:
-            - 'sub-folder-1/**'
-            - 'sub-folder-2/**'
+            - sub-folder-1/**
+            - sub-folder-2/**
          
  terraform:
    name: "Terraform Infrastructure Change Management"
