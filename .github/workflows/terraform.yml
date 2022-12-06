@@ -36,6 +36,7 @@ jobs:
          
  terraform:
    needs: changes
+   if: ${{ needs.changes.outputs.names != '[]' }}
    name: "Terraform Infrastructure Change Management"
    runs-on: ubuntu-latest
    permissions:
