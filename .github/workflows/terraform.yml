@@ -7,27 +7,53 @@ on:
  pull_request:
    branches:
    - main
+   paths:
+   - 'subfolder-1/**'
  
-env:
-  # verbosity setting for Terraform logs
-  TF_LOG: INFO
-  # Credentials for deployment to AWS
-  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+# env:
+#   # verbosity setting for Terraform logs
+#   TF_LOG: INFO
+#   # Credentials for deployment to AWS
+#   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
  
 jobs:
+ changes:
+    name: Detect Changes in folder
+    runs-on: ubuntu-latest
+    outputs:
+      names: ${{ steps.filter.outputs.changes }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Detect Changes
+      uses: dorny/paths-filter@v2
+      id: filter
+      with:
+        filters: |
+          folder-1:
+            - 'sub-folder-1/**'
+         
  terraform:
    name: "Terraform Infrastructure Change Management"
    runs-on: ubuntu-latest
+   permissions:
+      id-token: write
+      contents: write
    defaults:
-     run:
-       working-directory: .
+    run:
+      working-directory: ${{ matrix.name }}   
  
    steps:
      - name: Checkout the repository to the runner
        uses: actions/checkout@v2
- 
+
+     - name: Configure AWS credentials from Test account
+       uses: aws-actions/configure-aws-credentials@v1
+       with:
+         role-to-assume: arn:aws:iam::710769988094:role/terraform-github
+         aws-region: ap-south-1  
+  
      - name: Setup Terraform with specified version on the runner
        uses: hashicorp/setup-terraform@v2
        with:
@@ -51,32 +77,32 @@ jobs:
        run: terraform plan -no-color -input=false
        continue-on-error: true
     
-     - uses: actions/github-script@v6
-       if: github.event_name == 'pull_request'
-       env:
-         PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
-       with:
-         script: |
-           const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
-           #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-           #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-           #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+    #  - uses: actions/github-script@v6
+    #    if: github.event_name == 'pull_request'
+    #    env:
+    #      PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+    #    with:
+    #      script: |
+    #        const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+    #        #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+    #        #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+    #        #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
  
-           <details><summary>Show Plan</summary>
+    #        <details><summary>Show Plan</summary>
  
-           \`\`\`\n
-           ${process.env.PLAN}
-           \`\`\`
+    #        \`\`\`\n
+    #        ${process.env.PLAN}
+    #        \`\`\`
  
-           </details>
-           *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+    #        </details>
+    #        *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
  
-           github.rest.issues.createComment({
-             issue_number: context.issue.number,
-             owner: context.repo.owner,
-             repo: context.repo.repo,
-             body: output
-           })
+    #        github.rest.issues.createComment({
+    #          issue_number: context.issue.number,
+    #          owner: context.repo.owner,
+    #          repo: context.repo.repo,
+    #          body: output
+    #        })
  
      - name: Terraform Plan Status
        if: steps.plan.outcome == 'failure'
