@@ -8,15 +8,8 @@ on:
    branches:
    - main
    paths:
-   - sub-folder-1/**
+   - services/**
  
-# env:
-#   # verbosity setting for Terraform logs
-#   TF_LOG: INFO
-#   # Credentials for deployment to AWS
-#   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
  
 jobs:
  changes:
@@ -32,29 +25,33 @@ jobs:
       with:
         filters: |
           folder-1:
-            - sub-folder-1/**
-            - sub-folder-2/**
+            - s3/**
+            - ec2/**
          
  terraform:
-   name: "Terraform Infrastructure Change Management"
+   needs: changes
+   if: ${{ needs.changes.outputs.names != '[]' }}
+   name: "Terraform Infrastructure Management"
    runs-on: ubuntu-latest
+   strategy:
+      matrix:
+         name: ${{ fromJSON(needs.changes.outputs.names) }}
    permissions:
-      id-token: write
-      contents: write
+     id-token: write
+     contents: write
    defaults:
-    run:
-      working-directory: ${{ matrix.name }}   
- 
+     run:
+       working-directory: ${{ matrix.name }}
    steps:
      - name: Checkout the repository to the runner
        uses: actions/checkout@v2
-
-     - name: Configure AWS credentials from Test account
+     
+     - name: Configure AWS Credentails
        uses: aws-actions/configure-aws-credentials@v1
        with:
-         role-to-assume: arn:aws:iam::710769988094:role/terraform-github
-         aws-region: ap-south-1  
-  
+        role-to-assume: << add arn of IAM Role >>
+        aws-region: ap-south-1a   
+ 
      - name: Setup Terraform with specified version on the runner
        uses: hashicorp/setup-terraform@v2
        with:
@@ -62,11 +59,11 @@ jobs:
     
      - name: Terraform init
        id: init
-       run: terraform init
+       run: terraform init 
  
      - name: Terraform format
        id: fmt
-       run: terraform fmt -check
+       run: terraform fmt
     
      - name: Terraform validate
        id: validate
@@ -75,40 +72,51 @@ jobs:
      - name: Terraform plan
        id: plan
        if: github.event_name == 'pull_request'
-       run: terraform plan -no-color -input=false
+       run: terraform plan -lock=false -input=false -no-color -out=tfplan --parallelism=200 && terraform show -no-color tfplan
        continue-on-error: true
-    
-    #  - uses: actions/github-script@v6
-    #    if: github.event_name == 'pull_request'
-    #    env:
-    #      PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
-    #    with:
-    #      script: |
-    #        const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
-    #        #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-    #        #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-    #        #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
- 
-    #        <details><summary>Show Plan</summary>
- 
-    #        \`\`\`\n
-    #        ${process.env.PLAN}
-    #        \`\`\`
- 
-    #        </details>
-    #        *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
- 
-    #        github.rest.issues.createComment({
-    #          issue_number: context.issue.number,
-    #          owner: context.repo.owner,
-    #          repo: context.repo.repo,
-    #          body: output
-    #        })
+
+     - name: Reformat Plan
+       run: |
+          echo '${{ steps.plan.outputs.stdout || steps.plan.outputs.stderr }}' \
+          | grep -v "Refreshing state...\|Reading...\|Read complete after" > plan.txt
+
+     - name: Put Plan in Env Var
+       run: |
+          PLAN=$(cat plan.txt)
+          echo "PLAN<<EOF" >> $GITHUB_ENV
+          echo "$PLAN" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV  
+
+     - uses: actions/github-script@v6
+       if: github.event_name == 'pull_request'
+       env:
+         PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+       with:
+         github-token: ${{ secrets.GIT_TOKEN }}
+         script: |
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+            <details><summary>Show Plan</summary>
+            
+            \`\`\`\n
+            ${process.env.PLAN} 
+            \`\`\`
+
+            </details>
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })     
  
      - name: Terraform Plan Status
        if: steps.plan.outcome == 'failure'
        run: exit 1
  
      - name: Terraform Apply
-       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-       run: terraform apply -auto-approve -input=false
+       if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+       run: terraform apply -auto-approve -input=false --parallelism=200
